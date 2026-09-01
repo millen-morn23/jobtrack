@@ -8,22 +8,23 @@ JobTrack gives job seekers one place to manage their job search and keep track o
 
 ## Core Features
 
-- Job application tracking
-- Application dashboard
-- Company and contact management
-- User authentication
-- Application status tracking
+* Job application tracking
+* Application dashboard
+* Company and contact management
+* User authentication
+* Application status tracking
 
-## Developer
+## Project Team
 
-- Millen
+This is an approved individual project for WDD 430.
+
+* Millen Morn — Group Leader and Sole Team Member
 
 ## Technology Stack
 
-- Next.js
-- TypeScript
-- Tailwind CSS
-- App Router
-- ESLint
-- Prettier
-
+* Next.js
+* TypeScript
+* Tailwind CSS
+* App Router
+* ESLint
+* Prettier
