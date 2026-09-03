@@ -4,6 +4,9 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import FormField, { fieldInputClassName } from "@/components/FormField";
+import Button from "@/components/Button";
+import ErrorBanner from "@/components/ErrorBanner";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -52,15 +55,10 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label
-                htmlFor="name"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Name
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            {error && <ErrorBanner message={error} />}
 
+            <FormField id="name" label="Name" required>
               <input
                 id="name"
                 name="name"
@@ -69,18 +67,11 @@ export default function RegisterPage() {
                 autoComplete="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className={fieldInputClassName}
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Email
-              </label>
-
+            <FormField id="email" label="Email" required>
               <input
                 id="email"
                 name="email"
@@ -89,18 +80,16 @@ export default function RegisterPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className={fieldInputClassName}
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Password
-              </label>
-
+            <FormField
+              id="password"
+              label="Password"
+              required
+              hint="Use at least 8 characters."
+            >
               <input
                 id="password"
                 name="password"
@@ -110,30 +99,18 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className={fieldInputClassName}
               />
+            </FormField>
 
-              <p className="mt-1 text-xs text-slate-500">
-                Use at least 8 characters.
-              </p>
-            </div>
-
-            {error && (
-              <p
-                role="alert"
-                className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
-              >
-                {error}
-              </p>
-            )}
-
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              loading={loading}
+              loadingText="Creating account..."
+              className="w-full"
             >
-              {loading ? "Creating account..." : "Create account"}
-            </button>
+              Create account
+            </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-600">

@@ -4,6 +4,9 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import FormField, { fieldInputClassName } from "@/components/FormField";
+import Button from "@/components/Button";
+import ErrorBanner from "@/components/ErrorBanner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,15 +53,10 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Email
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            {error && <ErrorBanner message={error} />}
 
+            <FormField id="email" label="Email" required>
               <input
                 id="email"
                 name="email"
@@ -67,18 +65,11 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className={fieldInputClassName}
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Password
-              </label>
-
+            <FormField id="password" label="Password" required>
               <input
                 id="password"
                 name="password"
@@ -87,26 +78,18 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className={fieldInputClassName}
               />
-            </div>
+            </FormField>
 
-            {error && (
-              <p
-                role="alert"
-                className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
-              >
-                {error}
-              </p>
-            )}
-
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              loading={loading}
+              loadingText="Logging in..."
+              className="w-full"
             >
-              {loading ? "Logging in..." : "Log in"}
-            </button>
+              Log in
+            </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-600">

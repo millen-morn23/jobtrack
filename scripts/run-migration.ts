@@ -1,16 +1,26 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { Pool } from "pg";
 
-const sql = readFileSync("lib/db/001_create_applications.sql", "utf8");
+const migrationsDir = path.join(process.cwd(), "lib", "db");
+
+const migrationFiles = readdirSync(migrationsDir)
+  .filter((file) => file.endsWith(".sql"))
+  .sort();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function runMigration() {
+async function runMigrations() {
   try {
-    await pool.query(sql);
-    console.log("✅ JobTrack application table created successfully.");
+    for (const file of migrationFiles) {
+      const sql = readFileSync(path.join(migrationsDir, file), "utf8");
+      await pool.query(sql);
+      console.log(`✅ Ran migration: ${file}`);
+    }
+
+    console.log("✅ All JobTrack migrations completed successfully.");
   } catch (error) {
     console.error("❌ Migration failed:", error);
     process.exitCode = 1;
@@ -19,4 +29,4 @@ async function runMigration() {
   }
 }
 
-runMigration();
+runMigrations();

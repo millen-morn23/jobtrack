@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "node --env-file=.env.local scripts/run-migration.ts",
+    "db:check": "node --env-file=.env.local scripts/check-applications-table.ts"
   },
   "dependencies": {
     "better-auth": "^1.7.2",

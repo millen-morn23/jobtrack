@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-
-const allowedStatuses = ["Applied", "Interview", "Offer", "Rejected"] as const;
+import { isApplicationStatus } from "@/lib/types";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -33,15 +32,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const body = await request.json();
 
-    const company =
-      typeof body.company === "string" ? body.company.trim() : "";
+    const company = typeof body.company === "string" ? body.company.trim() : "";
     const position =
       typeof body.position === "string" ? body.position.trim() : "";
     const location =
       typeof body.location === "string" ? body.location.trim() : "";
     const notes = typeof body.notes === "string" ? body.notes.trim() : "";
-    const status =
-      typeof body.status === "string" ? body.status : "Applied";
+    const status = typeof body.status === "string" ? body.status : "Applied";
 
     if (!company || !position) {
       return NextResponse.json(
@@ -50,11 +47,40 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    if (!allowedStatuses.includes(status as (typeof allowedStatuses)[number])) {
+    if (!isApplicationStatus(status)) {
       return NextResponse.json(
         { error: "Invalid application status." },
         { status: 400 },
       );
+    }
+
+    let companyId: number | null = null;
+
+    if (
+      body.companyId !== undefined &&
+      body.companyId !== null &&
+      body.companyId !== ""
+    ) {
+      companyId = Number(body.companyId);
+
+      if (!Number.isInteger(companyId)) {
+        return NextResponse.json(
+          { error: "Invalid company selection." },
+          { status: 400 },
+        );
+      }
+
+      const companyCheck = await db.query(
+        `SELECT id FROM company WHERE id = $1 AND user_id = $2`,
+        [companyId, session.user.id],
+      );
+
+      if (companyCheck.rows.length === 0) {
+        return NextResponse.json(
+          { error: "Selected company was not found." },
+          { status: 400 },
+        );
+      }
     }
 
     const result = await db.query(
@@ -62,16 +88,18 @@ export async function PATCH(request: Request, context: RouteContext) {
         UPDATE job_application
         SET
           company = $1,
-          position = $2,
-          location = $3,
-          status = $4,
-          notes = $5,
+          company_id = $2,
+          position = $3,
+          location = $4,
+          status = $5,
+          notes = $6,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $6
-          AND user_id = $7
+        WHERE id = $7
+          AND user_id = $8
         RETURNING
           id,
           company,
+          company_id,
           position,
           location,
           date_applied,
@@ -82,6 +110,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       `,
       [
         company,
+        companyId,
         position,
         location || null,
         status,
@@ -98,9 +127,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    return NextResponse.json({
-      application: result.rows[0],
-    });
+    const application = result.rows[0];
+
+    if (companyId) {
+      const companyResult = await db.query(
+        `SELECT name FROM company WHERE id = $1`,
+        [companyId],
+      );
+      application.company_name = companyResult.rows[0]?.name ?? null;
+    } else {
+      application.company_name = null;
+    }
+
+    return NextResponse.json({ application });
   } catch (error) {
     console.error("Failed to update application:", error);
 
