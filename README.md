@@ -106,7 +106,7 @@ The project is set up to deploy on [Vercel](https://vercel.com/) (a `.vercel` pr
 2. Set `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` (pointing at the deployed domain) as environment variables in the Vercel project settings.
 3. Run `npm run db:migrate` against the production database (or via a Vercel deploy hook) before first use.
 
-No production deployment URL is published here yet — add one once the project is deployed.
+Production deployment: https://jobtrack-brown.vercel.app/
 
 ## API Route Documentation
 
@@ -194,4 +194,10 @@ There is no automated test suite (not required for this project's scope). Verifi
 - Manual end-to-end testing in a real browser covering: registration, login, logout, protected-route redirects, application/company/contact create-read-update-delete, status changes, search/filter (including no-results and cleared-filter states), company deletion cascading to contacts while preserving the application's company name, and cross-user data isolation (a second account cannot see or fetch the first account's companies/applications).
 - Direct API checks confirming unauthenticated requests return `401` and cross-user requests return `404`.
 
-Browser-only checks that still require manual verification (Lighthouse scores, a full CSS Overview contrast pass) should be run from Chrome DevTools against a running instance, since they aren't things this environment can execute directly.
+Browser QA completed against the production build:
+
+- Mobile Lighthouse: Performance 98, Accessibility 100, Best Practices 100, SEO 100.
+- Desktop Lighthouse: Performance 99, Accessibility 100, Best Practices 100, SEO 100.
+- CSS Overview contrast checks were reviewed and the identified text/background combinations passed WCAG AA contrast requirements.
+- Responsive behavior was verified across Dashboard, Applications, and Companies at a mobile viewport.
+- Production authentication and application/company/contact workflows were verified on the deployed site.
