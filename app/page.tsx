@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import LogoutButton from "@/components/LogoutButton";
 
 type ApplicationStatus = "Applied" | "Interview" | "Offer" | "Rejected";
 
@@ -14,36 +16,6 @@ type JobApplication = {
   notes: string;
 };
 
-const initialApplications: JobApplication[] = [
-  {
-    id: 1,
-    company: "Tech Solutions Inc.",
-    position: "Frontend Developer",
-    location: "Remote",
-    dateApplied: "August 28, 2026",
-    status: "Applied",
-    notes: "Submitted application through the company careers page.",
-  },
-  {
-    id: 2,
-    company: "Creative Digital",
-    position: "Full Stack Developer",
-    location: "Nairobi, Kenya",
-    dateApplied: "August 25, 2026",
-    status: "Interview",
-    notes: "First interview scheduled with the hiring team.",
-  },
-  {
-    id: 3,
-    company: "Innovate Labs",
-    position: "Software Engineer",
-    location: "Remote",
-    dateApplied: "August 20, 2026",
-    status: "Rejected",
-    notes: "Application was not selected for the next stage.",
-  },
-];
-
 const statusStyles: Record<ApplicationStatus, string> = {
   Applied: "bg-blue-100 text-blue-800",
   Interview: "bg-yellow-100 text-yellow-800",
@@ -51,13 +23,40 @@ const statusStyles: Record<ApplicationStatus, string> = {
   Rejected: "bg-red-100 text-red-800",
 };
 
-export default function Home() {
-  const [applications, setApplications] =
-    useState<JobApplication[]>(initialApplications);
+function formatDate(dateValue: string) {
+  return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 
+function mapApplication(application: {
+  id: number;
+  company: string;
+  position: string;
+  location: string | null;
+  date_applied: string;
+  status: ApplicationStatus;
+  notes: string | null;
+}): JobApplication {
+  return {
+    id: application.id,
+    company: application.company,
+    position: application.position,
+    location: application.location || "Not specified",
+    dateApplied: formatDate(application.date_applied),
+    status: application.status,
+    notes: application.notes || "No notes added.",
+  };
+}
+
+export default function Home() {
+  const router = useRouter();
+
+  const [applications, setApplications] = useState<JobApplication[]>([]);
   const [selectedApplication, setSelectedApplication] =
     useState<JobApplication | null>(null);
-
   const [editingApplication, setEditingApplication] =
     useState<JobApplication | null>(null);
 
@@ -67,6 +66,43 @@ export default function Home() {
   const [status, setStatus] = useState<ApplicationStatus>("Applied");
   const [notes, setNotes] = useState("");
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadApplications() {
+      try {
+        setError("");
+
+        const response = await fetch("/api/applications");
+
+        if (response.status === 401) {
+          router.push("/login");
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Unable to load applications.");
+        }
+
+        const data = await response.json();
+
+        const loadedApplications: JobApplication[] =
+          data.applications.map(mapApplication);
+
+        setApplications(loadedApplications);
+      } catch (loadError) {
+        console.error(loadError);
+        setError("Unable to load your applications. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadApplications();
+  }, [router]);
+
   function resetForm() {
     setCompany("");
     setPosition("");
@@ -75,33 +111,60 @@ export default function Home() {
     setNotes("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!company.trim() || !position.trim()) {
       return;
     }
 
-    const newApplication: JobApplication = {
-      id: Date.now(),
-      company: company.trim(),
-      position: position.trim(),
-      location: location.trim() || "Not specified",
-      dateApplied: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      status,
-      notes: notes.trim() || "No notes added.",
-    };
+    try {
+      setSaving(true);
+      setError("");
 
-    setApplications((currentApplications) => [
-      newApplication,
-      ...currentApplications,
-    ]);
+      const response = await fetch("/api/applications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          company: company.trim(),
+          position: position.trim(),
+          location: location.trim(),
+          status,
+          notes: notes.trim(),
+        }),
+      });
 
-    resetForm();
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Unable to create application.");
+      }
+
+      const data = await response.json();
+      const newApplication = mapApplication(data.application);
+
+      setApplications((currentApplications) => [
+        newApplication,
+        ...currentApplications,
+      ]);
+
+      resetForm();
+    } catch (submitError) {
+      console.error(submitError);
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to create application.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   function startEditing(application: JobApplication) {
@@ -114,32 +177,67 @@ export default function Home() {
     setSelectedApplication(null);
   }
 
-  function handleUpdate(event: FormEvent<HTMLFormElement>) {
+  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!editingApplication || !company.trim() || !position.trim()) {
       return;
     }
 
-    const updatedApplication: JobApplication = {
-      ...editingApplication,
-      company: company.trim(),
-      position: position.trim(),
-      location: location.trim() || "Not specified",
-      status,
-      notes: notes.trim() || "No notes added.",
-    };
+    try {
+      setSaving(true);
+      setError("");
 
-    setApplications((currentApplications) =>
-      currentApplications.map((application) =>
-        application.id === editingApplication.id
-          ? updatedApplication
-          : application,
-      ),
-    );
+      const response = await fetch(
+        `/api/applications/${editingApplication.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            company: company.trim(),
+            position: position.trim(),
+            location: location.trim(),
+            status,
+            notes: notes.trim(),
+          }),
+        },
+      );
 
-    setEditingApplication(null);
-    resetForm();
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Unable to update application.");
+      }
+
+      const data = await response.json();
+      const updatedApplication = mapApplication(data.application);
+
+      setApplications((currentApplications) =>
+        currentApplications.map((application) =>
+          application.id === updatedApplication.id
+            ? updatedApplication
+            : application,
+        ),
+      );
+
+      setEditingApplication(null);
+      resetForm();
+    } catch (updateError) {
+      console.error(updateError);
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Unable to update application.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   function cancelEditing() {
@@ -147,33 +245,73 @@ export default function Home() {
     resetForm();
   }
 
-  function handleDelete(id: number) {
-    setApplications((currentApplications) =>
-      currentApplications.filter((application) => application.id !== id),
-    );
+  async function handleDelete(id: number) {
+    try {
+      setError("");
 
-    setSelectedApplication(null);
+      const response = await fetch(`/api/applications/${id}`, {
+        method: "DELETE",
+      });
 
-    if (editingApplication?.id === id) {
-      cancelEditing();
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Unable to delete application.");
+      }
+
+      setApplications((currentApplications) =>
+        currentApplications.filter((application) => application.id !== id),
+      );
+
+      setSelectedApplication(null);
+
+      if (editingApplication?.id === id) {
+        cancelEditing();
+      }
+    } catch (deleteError) {
+      console.error(deleteError);
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete application.",
+      );
     }
   }
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-8">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
-            Job application tracker
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            JobTrack
-          </h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
-            Keep your job applications organized and track where you are in
-            the hiring process.
-          </p>
+        <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
+              Job application tracker
+            </p>
+
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              JobTrack
+            </h1>
+
+            <p className="mt-2 max-w-2xl text-slate-600">
+              Keep your job applications organized and track where you are in
+              the hiring process.
+            </p>
+          </div>
+
+          <LogoutButton />
         </header>
+
+        {error && (
+          <div
+            role="alert"
+            className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        )}
 
         <section
           aria-labelledby="application-form-heading"
@@ -188,6 +326,7 @@ export default function Home() {
                 ? "Update Job Application"
                 : "Add Job Application"}
             </h2>
+
             <p className="mt-1 text-sm text-slate-600">
               {editingApplication
                 ? "Update the information for this application."
@@ -206,6 +345,7 @@ export default function Home() {
               >
                 Company
               </label>
+
               <input
                 id="company"
                 type="text"
@@ -224,6 +364,7 @@ export default function Home() {
               >
                 Position
               </label>
+
               <input
                 id="position"
                 type="text"
@@ -242,6 +383,7 @@ export default function Home() {
               >
                 Location
               </label>
+
               <input
                 id="location"
                 type="text"
@@ -259,6 +401,7 @@ export default function Home() {
               >
                 Status
               </label>
+
               <select
                 id="status"
                 value={status}
@@ -281,6 +424,7 @@ export default function Home() {
               >
                 Notes
               </label>
+
               <input
                 id="notes"
                 type="text"
@@ -294,18 +438,22 @@ export default function Home() {
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-5">
               <button
                 type="submit"
-                className="rounded-lg bg-blue-700 px-5 py-2 font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                disabled={saving}
+                className="rounded-lg bg-blue-700 px-5 py-2 font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {editingApplication
-                  ? "Save Changes"
-                  : "Add Application"}
+                {saving
+                  ? "Saving..."
+                  : editingApplication
+                    ? "Save Changes"
+                    : "Add Application"}
               </button>
 
               {editingApplication && (
                 <button
                   type="button"
                   onClick={cancelEditing}
-                  className="rounded-lg border border-slate-300 px-5 py-2 font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  disabled={saving}
+                  className="rounded-lg border border-slate-300 px-5 py-2 font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cancel
                 </button>
@@ -319,17 +467,23 @@ export default function Home() {
             <h2 id="applications-heading" className="text-2xl font-semibold">
               My Applications
             </h2>
+
             <p className="text-sm text-slate-600">
               {applications.length} application
               {applications.length === 1 ? "" : "s"} tracked
             </p>
           </div>
 
-          {applications.length === 0 ? (
+          {loading ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+              <p className="text-sm text-slate-600">
+                Loading your applications...
+              </p>
+            </div>
+          ) : applications.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
-              <h3 className="text-lg font-semibold">
-                No applications yet
-              </h3>
+              <h3 className="text-lg font-semibold">No applications yet</h3>
+
               <p className="mt-1 text-sm text-slate-600">
                 Add your first job application using the form above.
               </p>
@@ -346,6 +500,7 @@ export default function Home() {
                       <h3 className="text-lg font-semibold">
                         {application.position}
                       </h3>
+
                       <p className="font-medium text-slate-700">
                         {application.company}
                       </p>
@@ -360,9 +515,8 @@ export default function Home() {
 
                   <dl className="mb-5 space-y-2 text-sm text-slate-600">
                     <div className="flex justify-between gap-4">
-                      <dt className="font-medium text-slate-800">
-                        Location
-                      </dt>
+                      <dt className="font-medium text-slate-800">Location</dt>
+
                       <dd className="text-right">
                         {application.location}
                       </dd>
@@ -372,6 +526,7 @@ export default function Home() {
                       <dt className="font-medium text-slate-800">
                         Date Applied
                       </dt>
+
                       <dd className="text-right">
                         {application.dateApplied}
                       </dd>
@@ -427,12 +582,14 @@ export default function Home() {
                   <p className="text-sm font-medium text-blue-700">
                     Application Details
                   </p>
+
                   <h2
                     id="details-heading"
                     className="mt-1 text-2xl font-bold"
                   >
                     {selectedApplication.position}
                   </h2>
+
                   <p className="text-slate-600">
                     {selectedApplication.company}
                   </p>
@@ -448,6 +605,7 @@ export default function Home() {
               <dl className="space-y-3 border-y border-slate-200 py-5">
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium">Company</dt>
+
                   <dd className="text-right">
                     {selectedApplication.company}
                   </dd>
@@ -455,6 +613,7 @@ export default function Home() {
 
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium">Position</dt>
+
                   <dd className="text-right">
                     {selectedApplication.position}
                   </dd>
@@ -462,6 +621,7 @@ export default function Home() {
 
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium">Location</dt>
+
                   <dd className="text-right">
                     {selectedApplication.location}
                   </dd>
@@ -469,6 +629,7 @@ export default function Home() {
 
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium">Date Applied</dt>
+
                   <dd className="text-right">
                     {selectedApplication.dateApplied}
                   </dd>
@@ -476,6 +637,7 @@ export default function Home() {
 
                 <div>
                   <dt className="font-medium">Notes</dt>
+
                   <dd className="mt-1 text-slate-600">
                     {selectedApplication.notes}
                   </dd>
